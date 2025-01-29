@@ -44,7 +44,7 @@
     "@scalar/openapi-parser": "^0.10.4",
     "@types/node-fetch": "^2.6.12",
     "js-yaml": "^4.1.0",
-    "semver": "^7.6.3",
+    "semver": "^7.7.0",
     "yaml": "^2.6.1"
   }
 }
