@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "@kubernetes/client-node": "1.0.0",
-    "@scalar/openapi-parser": "^0.10.8",
+    "@scalar/openapi-parser": "^0.10.9",
     "js-yaml": "^4.1.0"
   },
   "pnpm": {
