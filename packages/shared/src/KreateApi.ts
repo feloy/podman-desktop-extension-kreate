@@ -1,6 +1,6 @@
 import type { CommandDetails } from './models/CommandDetails';
 import type * as podmanDesktopApi from '@podman-desktop/api';
-import type { OpenAPIV3 } from 'openapi-types';
+import type { SimplifiedSpec } from './models/SimplifiedSpec';
 
 export abstract class KreateApi {
   abstract getCommands(parent?: string): Promise<string[]>;
@@ -11,7 +11,7 @@ export abstract class KreateApi {
 
   abstract create(s: string): Promise<void>;
 
-  abstract getSpecFromYamlManifest(content: string): Promise<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject>;
+  abstract getSpecFromYamlManifest(content: string, pathInSpec: string[]): Promise<SimplifiedSpec>;
   abstract getPathAtPosition(content: string, position: number): Promise<string[]>;
   abstract getState(): Promise<{ content: string; position: number }>;
 }
