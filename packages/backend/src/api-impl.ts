@@ -6,7 +6,8 @@ import type { KubernetesObject } from '@kubernetes/client-node';
 import { KubeConfig } from '@kubernetes/client-node';
 import { parseAllDocuments } from 'yaml';
 import { SpecReader } from './spec-reader';
-import type { OpenAPIV3 } from 'openapi-types';
+import type { SimplifiedSpec } from '/@shared/src/models/SimplifiedSpec';
+import { getSimplifiedSpec } from './spec-as-text';
 
 /**
  * HelloWorldApi is an interface that defines the abstracted class for the HelloWorldApi, it is a requirement to match this interface to your API implementation.
@@ -77,8 +78,9 @@ export class KreateApiImpl implements KreateApi {
     await podmanDesktopApi.kubernetes.createResources(context, manifests);
   }
 
-  public async getSpecFromYamlManifest(content: string): Promise<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject> {
-    return this.#specReader.getSpecFromYamlManifest(content);
+  public async getSpecFromYamlManifest(content: string, pathInSpec: string[]): Promise<SimplifiedSpec> {
+    const spec = await this.#specReader.getSpecFromYamlManifest(content);
+    return getSimplifiedSpec(spec, '', { prefix: [], pathInSpec });
   }
 
   public async getPathAtPosition(content: string, position: number): Promise<string[]> {
