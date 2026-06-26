@@ -39,6 +39,7 @@ const kubeconfig = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(fetch).mockResolvedValue({
+    ok: true,
     json: jsonMock,
   } as unknown as fetch.Response);
 

@@ -24,7 +24,8 @@
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // from https://github.com/tctree333/js-yaml-source-map
-import type { State } from 'js-yaml';
+import { parseEvents, EVENT_DOCUMENT, EVENT_MAPPING, EVENT_SEQUENCE, EVENT_SCALAR, EVENT_POP } from 'js-yaml';
+import type { MappingEvent, ScalarEvent } from 'js-yaml';
 
 // maps path in object to position information
 interface Path {
@@ -33,225 +34,158 @@ interface Path {
   lineStart: number;
 }
 
-interface Fragment {
-  path: string;
-  line: number;
-  position: number;
-  lineStart: number;
-  children?: Fragment[];
-}
-
 interface SourceLocation {
   line: number;
   column: number;
   position: number;
 }
 
+interface StackEntry {
+  type: 'doc' | 'mapping' | 'sequence';
+  path: string;
+  isKey: boolean;
+  index: number;
+}
+
 export class SourceMap {
   private _map: Map<string, Path>;
-  private _path: string[];
-  private _lastScalar: string;
-  private _fragments: Fragment[];
-  private _count: number;
 
   constructor() {
     this._map = new Map();
-    this._path = [];
-    this._lastScalar = '';
-    this._fragments = [];
-    this._count = 0;
   }
 
   public get map(): Map<string, Path> {
     return this._map;
   }
 
-  // recursively pushes information to the path map
-  private resolveNode(fragment: Fragment, path: string): void {
-    // if fragment is already at the root, don't prepend stuff
-    if (fragment.path === '.') {
-      path = '.';
-    }
-    // if the path is already in the map, we don't override it
-    if (!this._map.get(path)) {
-      const { line, position, lineStart } = fragment;
-      this._map.set(path, { line, position, lineStart });
-    }
-    // if there are children, we recursively resolve them
-    if (fragment.children && fragment.children.length > 0) {
-      fragment.children.forEach(child => {
-        this.resolveNode(child, (path === '.' ? '' : path) + '.' + child.path);
-      });
-    }
-  }
-
-  // loops through fragments and removes children of the path
-  private iterFragments(pathName: string, callback: (fragment: Fragment) => void): void {
-    for (let i = this._fragments.length - 1; i >= 0; i--) {
-      // skip the parent and fragments not in the path
-      if (!this._fragments[i].path.startsWith(pathName) || this._fragments[i].path === pathName) {
-        continue;
-      }
-      const fragment = this._fragments.pop() as Fragment;
-      callback(fragment);
-    }
-  }
-
-  private handleState(event: 'open' | 'close', state: State): void {
-    // the listener function emits an "open" and "close" event for each "node".
-    // "open" events tell us that we are going one level deeper, while "close"
-    // events actually give us the correct data about the node. we receive each
-    // scalar value (primitve) as well as the constructed objects (map, seq, etc)
+  public buildMap(content: string): void {
+    // parseEvents emits a flat stream of events describing the YAML structure.
+    // We walk it with an explicit stack to track our depth and current path,
+    // recording each key's line number in the map so getAtPos() can later find
+    // the deepest path that started at or before a given line.
     //
-    // to generate sourcemaps, we listen to "open" and "close" events to determine
-    // our depth in the document. we also keep track of all the scalar values we
-    // encounter, which includes both keys and values. since we can't determine
-    // whether a scalar is a key or a value, or the location in a sequence, we
-    // edit past fragments to the correct path when constructed objects are finally
-    // emitted.
+    // The event types we care about:
+    //   EVENT_DOCUMENT – wraps the whole document; just pushed as a sentinel.
+    //   EVENT_MAPPING  – start of a mapping (object); its `start` is the char
+    //                    offset of the first key. For the root mapping we store
+    //                    '.' here so there is always a root entry.
+    //   EVENT_SEQUENCE – start of a sequence (array); we track a running index
+    //                    so elements are addressed as path.0, path.1, …
+    //   EVENT_SCALAR   – a scalar value. Inside a mapping, scalars alternate
+    //                    between keys and values; we record the path only for
+    //                    keys, using `isKey` to tell them apart.
+    //   EVENT_POP      – closes the innermost open collection or document.
 
-    if (event === 'close') {
-      const result = state.result as unknown;
-      const kind = state.kind;
-      const pathName = this._path.join('.');
+    // Build a char-offset → line-number lookup table so we can convert the
+    // character offsets returned by parseEvents into 0-indexed line numbers.
+    const lineStarts: number[] = [0];
+    for (let i = 0; i < content.length; i++) {
+      if (content[i] === '\n') lineStarts.push(i + 1);
+    }
+    const lineOf = (offset: number): number => {
+      let lo = 0,
+        hi = lineStarts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (lineStarts[mid] <= offset) lo = mid;
+        else hi = mid - 1;
+      }
+      return lo;
+    };
 
-      // scalar typse are primitives (non maps/arrays)
-      if (kind === 'scalar') {
-        // we need to pop the path before computing things for scalars
-        this._path.pop();
+    const events = parseEvents(content, {});
+    const stack: StackEntry[] = [];
+    // pendingKeyPath holds the map path of the most recently seen mapping key,
+    // so that when the following value turns out to be a nested collection
+    // (EVENT_MAPPING / EVENT_SEQUENCE) we know which path to assign it.
+    let pendingKeyPath = '';
+    let rootSet = false;
 
-        // save the scalar for later, since it's not junk
-        this._lastScalar = `${result as string}`;
+    for (const event of events) {
+      const type = event.type;
 
-        const { line, position, lineStart } = state;
-        if (this._path.length === 0) {
-          // a path of length 0 is the root, store this to the path map
-          this._map.set('.' + (result as string), {
-            line,
-            position,
-            lineStart,
-          });
+      if (type === EVENT_DOCUMENT) {
+        stack.push({ type: 'doc', path: '', isKey: false, index: 0 });
+      } else if (type === EVENT_MAPPING) {
+        const { start } = event as MappingEvent;
+        const line = lineOf(start);
+        const lineStart = lineStarts[line];
+
+        if (!rootSet) {
+          // The very first mapping is the root; store it under '.' so that
+          // getAtPos() always has a root entry to fall back to.
+          this._map.set('.', { line, position: start, lineStart });
+          rootSet = true;
+          stack.push({ type: 'mapping', path: '.', isKey: true, index: 0 });
         } else {
-          // a path of length > 1 is a child of the root, store this as a fragment
-          this._fragments.push({
-            path: this._path.join('.') + '.' + (result as string),
-            line,
-            position,
-            lineStart,
-          });
+          const parent = stack[stack.length - 1];
+          if (parent.type === 'mapping') {
+            // The mapping is the value of the key we just recorded; the path
+            // was already written to the map when we saw that key scalar.
+            // Mark the parent as expecting a key again (after this nested
+            // mapping is closed by EVENT_POP).
+            parent.isKey = true;
+            stack.push({ type: 'mapping', path: pendingKeyPath, isKey: true, index: 0 });
+          } else if (parent.type === 'sequence') {
+            // Each mapping element of a sequence gets a numeric path segment.
+            const elemPath = `${parent.path}.${parent.index}`;
+            parent.index++;
+            stack.push({ type: 'mapping', path: elemPath, isKey: true, index: 0 });
+          }
         }
-      } else if (kind === 'mapping' || !kind) {
-        const newFragment: Fragment = {
-          path: pathName,
-          children: [],
-          line: 0,
-          position: 0,
-          lineStart: 0,
-        };
-        // the fragments currently do not distinguish between keys and values, so we
-        // need to use the index to determine which is which.
-        //
-        // we're just counting, so the index doesn't correspond to anything
-        // and we can count up, even though we're looping backwards.
-        let index = 0;
-        this.iterFragments(pathName, fragment => {
-          index++;
-          // always keep non-primitive fragments
-          if ((!fragment.children || fragment.children.length === 0) && index % 2 === 1) {
-            // some fragments might be values, not keys.
-            // keys will have an even index since we loop backwards, start at 0, and increment before checking.
+      } else if (type === EVENT_SEQUENCE) {
+        // Sequences don't contribute a map entry themselves; their elements
+        // are addressed by the numeric index tracked in the stack entry.
+        const parent = stack[stack.length - 1];
+        if (parent.type === 'mapping') {
+          parent.isKey = true;
+          stack.push({ type: 'sequence', path: pendingKeyPath, isKey: false, index: 0 });
+        } else if (parent.type === 'sequence') {
+          // Nested sequence: each element gets its own numeric path segment.
+          const elemPath = `${parent.path}.${parent.index}`;
+          parent.index++;
+          stack.push({ type: 'sequence', path: elemPath, isKey: false, index: 0 });
+        }
+      } else if (type === EVENT_SCALAR) {
+        const { valueStart, valueEnd } = event as ScalarEvent;
+        const value = content.slice(valueStart, valueEnd);
+        const line = lineOf(valueStart);
+        const lineStart = lineStarts[line];
 
-            // discard odd indices, they're values
-            return;
-          }
-
-          if (this._path.length === 1) {
-            // if we're at the root, write to path map
-            this.resolveNode(fragment, fragment.path);
+        const parent = stack[stack.length - 1];
+        if (parent.type === 'mapping') {
+          if (parent.isKey) {
+            // Key scalar: record its path and line so getAtPos() can find it,
+            // then remember the path in case the next event is a nested
+            // collection (EVENT_MAPPING / EVENT_SEQUENCE).
+            const keyPath = parent.path === '.' ? `.${value}` : `${parent.path}.${value}`;
+            this._map.set(keyPath, { line, position: valueStart, lineStart });
+            pendingKeyPath = keyPath;
+            parent.isKey = false;
           } else {
-            // otherwise create a new fragment with correct children
-            (newFragment.children as Fragment[]).push({
-              ...fragment,
-              path: fragment.path.slice(pathName.length + 1),
-            });
-
-            newFragment.line = fragment.line - 1;
-            newFragment.position = fragment.position;
-            newFragment.lineStart = fragment.lineStart;
+            // Value scalar: nothing to record; just toggle back to key mode.
+            parent.isKey = true;
           }
-        });
-        this._fragments.push(newFragment);
-
-        this._path.pop();
-      } else if (kind === 'sequence') {
-        // fragment paths are junk for sequences so we don't use them.
-
-        const newFragment: Fragment = {
-          path: pathName,
-          children: [],
-          line: 0,
-          position: 0,
-          lineStart: 0,
-        };
-        // discard duplicates based on position
-        const seen = new Set<number>();
-
-        // since we don't have keys and can have duplicate values in a sequence,
-        // we need to determine the correct order. by assuming that we're traversing
-        // the document in order, we can find the order.
-        //
-        // we're actually looping backwards, so we count down from the end
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let index = (result as any[]).length;
-        this.iterFragments(pathName, fragment => {
-          if (seen.has(fragment.position)) {
-            return;
+        } else if (parent.type === 'sequence') {
+          // Scalar element of a sequence: advance the index so the next
+          // element (if any) gets a fresh numeric path segment.
+          parent.index++;
+        }
+      } else if (type === EVENT_POP) {
+        // EVENT_POP closes the innermost open collection or document.
+        if (stack.length > 0 && stack[stack.length - 1].type !== 'doc') {
+          stack.pop();
+          // If we just closed a nested collection that was the value of a
+          // mapping key, the parent mapping is now ready for its next key.
+          const newTop = stack[stack.length - 1];
+          if (newTop?.type === 'mapping' && !newTop.isKey) {
+            newTop.isKey = true;
           }
-          index--;
-          seen.add(fragment.position);
-
-          if (this._path.length === 1) {
-            // if we're at the root, write to path map
-            this.resolveNode(fragment, `${pathName}.${index}`);
-          } else {
-            // otherwise create a new fragment with correct children
-            (newFragment.children as Fragment[]).push({
-              ...fragment,
-              path: index.toString(),
-            });
-
-            newFragment.line = fragment.line;
-            newFragment.position = fragment.position;
-            newFragment.lineStart = fragment.lineStart;
-          }
-        });
-        this._fragments.push(newFragment);
-
-        this._path.pop();
-      } else {
-        // kind is undefined, pop the path to stay in sync
-        this._path.pop();
+        } else if (stack.length > 0) {
+          stack.pop();
+        }
       }
     }
-
-    if (event === 'open') {
-      if (this._count === 0) {
-        // save the root document
-        const { line, position, lineStart } = state;
-        this._map.set('.', { line, position, lineStart });
-      }
-
-      // open events might have junk data, so we push the last found scalar
-      this._path.push(this._lastScalar);
-
-      this._count++;
-    }
-  }
-
-  public listen() {
-    // since js-yaml calls `state.listener` internally, we bind to this
-    // so `this` refers to the class instance, not `state``
-    return this.handleState.bind(this);
   }
 
   public lookup(path: string | string[]): SourceLocation | undefined {

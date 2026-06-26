@@ -73,8 +73,11 @@ export class SpecCache {
       if (this.isConnectionRefusedException(err)) {
         throw new Error(NO_CONTEXT_EXCEPTION);
       } else {
-        throw err;
+        throw new Error(`fetch ${requestURL}: ${this.fetchErrorMessage(err)}`);
       }
+    }
+    if (!response.ok) {
+      throw new Error(`fetch ${requestURL}: HTTP ${response.status} ${response.statusText}`);
     }
     const index = indexParser.parse(await response.json());
     if (!index) {
@@ -97,7 +100,11 @@ export class SpecCache {
 
     const groupVersion = this.getGroupVersionFromApiVersion(apiVersion);
     const index = await this.getIndex(kubeconfig);
-    const path = index.paths[groupVersion].serverRelativeURL;
+    const indexEntry = index.paths[groupVersion];
+    if (!indexEntry) {
+      throw new Error(`no index entry found for group version ${groupVersion}`);
+    }
+    const path = indexEntry.serverRelativeURL;
     const cluster = kubeconfig.getCurrentCluster();
     if (!cluster) {
       throw new Error(NO_CONTEXT_EXCEPTION);
@@ -112,8 +119,11 @@ export class SpecCache {
       if (this.isConnectionRefusedException(err)) {
         throw new Error(NO_CONTEXT_EXCEPTION);
       } else {
-        throw err;
+        throw new Error(`fetch ${requestURL}: ${this.fetchErrorMessage(err)}`);
       }
+    }
+    if (!response.ok) {
+      throw new Error(`fetch ${requestURL}: HTTP ${response.status} ${response.statusText}`);
     }
     const spec = await response.json();
     const result = await validate(spec);
@@ -175,6 +185,14 @@ export class SpecCache {
 
   private isConnectionRefusedException(err: unknown): boolean {
     return err instanceof Error && 'code' in err && err.code === 'ECONNREFUSED';
+  }
+
+  private fetchErrorMessage(err: unknown): string {
+    if (!(err instanceof Error)) return String(err);
+    const cause = (err as Error & { cause?: unknown }).cause;
+    if (!(cause instanceof Error)) return err.message;
+    const codeStr = 'code' in cause ? ` code=${cause.code}` : '';
+    return `${err.message} (cause: ${cause.message}${codeStr})`;
   }
 }
 
