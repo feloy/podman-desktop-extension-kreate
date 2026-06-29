@@ -59,6 +59,7 @@ export class SourceMap {
   }
 
   public buildMap(content: string): void {
+    this._map.clear();
     // parseEvents emits a flat stream of events describing the YAML structure.
     // We walk it with an explicit stack to track our depth and current path,
     // recording each key's line number in the map so getAtPos() can later find
@@ -167,8 +168,8 @@ export class SourceMap {
             parent.isKey = true;
           }
         } else if (parent.type === 'sequence') {
-          // Scalar element of a sequence: advance the index so the next
-          // element (if any) gets a fresh numeric path segment.
+          const elemPath = `${parent.path}.${parent.index}`;
+          this._map.set(elemPath, { line, position: valueStart, lineStart });
           parent.index++;
         }
       } else if (type === EVENT_POP) {

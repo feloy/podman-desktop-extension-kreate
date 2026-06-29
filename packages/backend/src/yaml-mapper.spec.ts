@@ -20,7 +20,7 @@ import { expect, test, describe } from 'vitest';
 import { SourceMap } from './yaml-mapper';
 
 describe('getAtPos', () => {
-  test('resolves a nested key by character offset', () => {
+  test('resolves a nested key by line number', () => {
     const content = `apiVersion: v1
 kind: Pod
 metadata:
@@ -28,7 +28,8 @@ metadata:
 `;
     const map = new SourceMap();
     map.buildMap(content);
-    expect(map.getAtPos(content.indexOf('name:'))).toEqual('.metadata.name');
+    // line 3 (0-indexed) is "  name: pod-name"
+    expect(map.getAtPos(3)).toEqual('.metadata.name');
   });
 
   test('returns root "." for positions on or after the first line', () => {
@@ -86,6 +87,21 @@ kind: Pod
     map.buildMap(content);
     expect(map.getAtPos(4)).toEqual('.spec.template.spec.containers.0.image');
     expect(map.getAtPos(5)).toEqual('.spec.template.spec.containers.0.name');
+  });
+
+  test('resolves scalar sequence elements by line number', () => {
+    const content = `spec:
+  containers:
+  - args:
+    - --flag-one
+    - --flag-two
+`;
+    const map = new SourceMap();
+    map.buildMap(content);
+    // line 3 is "    - --flag-one" → .spec.containers.0.args.0
+    expect(map.getAtPos(3)).toEqual('.spec.containers.0.args.0');
+    // line 4 is "    - --flag-two" → .spec.containers.0.args.1
+    expect(map.getAtPos(4)).toEqual('.spec.containers.0.args.1');
   });
 
   test('records the key for an empty flow mapping and does not crash', () => {

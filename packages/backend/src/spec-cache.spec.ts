@@ -82,6 +82,22 @@ describe('getIdnex', () => {
     vi.mocked(fetch).mockClear().mockRejectedValue(err);
     await expect(() => cache.getIndex(kubeconfig)).rejects.toThrow(NO_CONTEXT_EXCEPTION);
   });
+
+  test('getIndex raises fetch error for non-network errors', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('timeout'));
+    await expect(() => cache.getIndex(kubeconfig)).rejects.toThrowError(
+      'fetch http://localhost:4000/openapi/v3: timeout',
+    );
+  });
+
+  test('getIndex raises error on non-OK HTTP response', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    } as unknown as fetch.Response);
+    await expect(() => cache.getIndex(kubeconfig)).rejects.toThrowError('HTTP 404 Not Found');
+  });
 });
 
 describe('getGroupVersionSpec', () => {
@@ -109,5 +125,28 @@ describe('getGroupVersionSpec', () => {
     err.code = 'ECONNREFUSED';
     vi.mocked(fetch).mockClear().mockRejectedValue(err);
     await expect(() => cache.getGroupVersionSpec(kubeconfig, 'v1', 'Pod')).rejects.toThrow(NO_CONTEXT_EXCEPTION);
+  });
+
+  test('getGroupVersionSpec raises error if group version not in index', async () => {
+    vi.spyOn(cache, 'getIndex').mockResolvedValue({ paths: {} });
+    await expect(() => cache.getGroupVersionSpec(kubeconfig, 'apps/v1', 'Deployment')).rejects.toThrowError(
+      'no index entry found for group version apis/apps/v1',
+    );
+  });
+
+  test('getGroupVersionSpec raises fetch error for non-network errors', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('timeout'));
+    await expect(() => cache.getGroupVersionSpec(kubeconfig, 'apps/v1', 'Deployment')).rejects.toThrowError('timeout');
+  });
+
+  test('getGroupVersionSpec raises error on non-OK HTTP response', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+    } as unknown as fetch.Response);
+    await expect(() => cache.getGroupVersionSpec(kubeconfig, 'apps/v1', 'Deployment')).rejects.toThrowError(
+      'HTTP 403 Forbidden',
+    );
   });
 });
