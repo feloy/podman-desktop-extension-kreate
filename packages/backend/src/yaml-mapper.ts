@@ -24,7 +24,7 @@
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // from https://github.com/tctree333/js-yaml-source-map
-import { parseEvents, EVENT_DOCUMENT, EVENT_MAPPING, EVENT_SEQUENCE, EVENT_SCALAR, EVENT_POP } from 'js-yaml';
+import { parseEvents, EVENT_ID } from 'js-yaml';
 import type { MappingEvent, ScalarEvent } from 'js-yaml';
 
 // maps path in object to position information
@@ -66,16 +66,16 @@ export class SourceMap {
     // the deepest path that started at or before a given line.
     //
     // The event types we care about:
-    //   EVENT_DOCUMENT – wraps the whole document; just pushed as a sentinel.
-    //   EVENT_MAPPING  – start of a mapping (object); its `start` is the char
-    //                    offset of the first key. For the root mapping we store
-    //                    '.' here so there is always a root entry.
-    //   EVENT_SEQUENCE – start of a sequence (array); we track a running index
-    //                    so elements are addressed as path.0, path.1, …
-    //   EVENT_SCALAR   – a scalar value. Inside a mapping, scalars alternate
-    //                    between keys and values; we record the path only for
-    //                    keys, using `isKey` to tell them apart.
-    //   EVENT_POP      – closes the innermost open collection or document.
+    //   DOCUMENT – wraps the whole document; just pushed as a sentinel.
+    //   MAPPING  – start of a mapping (object); its `start` is the char
+    //              offset of the first key. For the root mapping we store
+    //              '.' here so there is always a root entry.
+    //   SEQUENCE – start of a sequence (array); we track a running index
+    //              so elements are addressed as path.0, path.1, …
+    //   SCALAR   – a scalar value. Inside a mapping, scalars alternate
+    //              between keys and values; we record the path only for
+    //              keys, using `isKey` to tell them apart.
+    //   POP      – closes the innermost open collection or document.
 
     // Build a char-offset → line-number lookup table so we can convert the
     // character offsets returned by parseEvents into 0-indexed line numbers.
@@ -105,9 +105,9 @@ export class SourceMap {
     for (const event of events) {
       const type = event.type;
 
-      if (type === EVENT_DOCUMENT) {
+      if (type === EVENT_ID.DOCUMENT) {
         stack.push({ type: 'doc', path: '', isKey: false, index: 0 });
-      } else if (type === EVENT_MAPPING) {
+      } else if (type === EVENT_ID.MAPPING) {
         const { start } = event as MappingEvent;
         const line = lineOf(start);
         const lineStart = lineStarts[line];
@@ -134,7 +134,7 @@ export class SourceMap {
             stack.push({ type: 'mapping', path: elemPath, isKey: true, index: 0 });
           }
         }
-      } else if (type === EVENT_SEQUENCE) {
+      } else if (type === EVENT_ID.SEQUENCE) {
         // Sequences don't contribute a map entry themselves; their elements
         // are addressed by the numeric index tracked in the stack entry.
         const parent = stack[stack.length - 1];
@@ -147,7 +147,7 @@ export class SourceMap {
           parent.index++;
           stack.push({ type: 'sequence', path: elemPath, isKey: false, index: 0 });
         }
-      } else if (type === EVENT_SCALAR) {
+      } else if (type === EVENT_ID.SCALAR) {
         const { valueStart, valueEnd } = event as ScalarEvent;
         const value = content.slice(valueStart, valueEnd);
         const line = lineOf(valueStart);
@@ -172,7 +172,7 @@ export class SourceMap {
           this._map.set(elemPath, { line, position: valueStart, lineStart });
           parent.index++;
         }
-      } else if (type === EVENT_POP) {
+      } else if (type === EVENT_ID.POP) {
         // EVENT_POP closes the innermost open collection or document.
         if (stack.length > 0 && stack[stack.length - 1].type !== 'doc') {
           stack.pop();
