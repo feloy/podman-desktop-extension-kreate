@@ -46,7 +46,7 @@ The format to define a new command is:
       "description": "Description of flag 1",
       "type": "file",
       "multiple": false
-    }    
+    }
   ],
   "cli": [
     "mycli",
@@ -59,7 +59,7 @@ The format to define a new command is:
 }
 ```
 
-The `.name` value will be displayed in the GUI, in the dropdown menu in which the user can select 
+The `.name` value will be displayed in the GUI, in the dropdown menu in which the user can select
 which resource he wants to create.
 
 The `args` are the manadory parameters added to the command (without flags), and are always of type `string`.
@@ -82,3 +82,28 @@ The `repeatFlag` attribute for an option indicates if the flag must be repeated 
 You can install the extension by providing the following OCI image in the **Install Custom Extension** form (accessible from `Podman Desktop > Extensions > Install Custom...`):
 
 OCI Image for nightly build: `ghcr.io/podman-desktop/extension-kreate:nightly`
+
+## End-to-end tests and captioned video
+
+The Playwright suite in `tests/playwright` runs Kreate inside Podman Desktop against an
+`envtest-start` Kubernetes API. It checks extension activation, template-based ConfigMap
+and Secret generation, YAML editing, validation errors, multi-resource manifests, and
+the resources applied to the cluster. It also checks template error recovery while
+creating a Namespace, resource discovery when creating a Pod, and the resource
+specification shown beside the YAML editor as its cursor moves.
+
+For a local run, install Podman Desktop, `kubectl`, `envtest-start`, and the Kubernetes
+test binaries from `setup-envtest`. Start `envtest-start` with a temporary kubeconfig
+output, then set `E2E_KUBECONFIG` to that path and `KUBEBUILDER_ASSETS` to the directory
+containing `kubectl`. Run `pnpm install` and `pnpm test:e2e`. Set
+`EXTENSION_OCI_IMAGE` to test a particular published image. To use an extension
+already placed in the Playwright runner's `kreate-tests/plugins/kreate` directory,
+set `EXTENSION_PREINSTALLED=true` and `SKIP_INSTALLATION=true`.
+
+On Linux with `ffmpeg` and `xvfb-run`, run
+`pnpm test:e2e:integration:subtitled` to produce
+`tests/playwright/recordings/kreate-e2e.mp4` with burned-in captions and chapters.
+The pull request workflow builds the current extension and uploads the baseline and
+captioned runs as artifacts. `tests/playwright/src/video-captions` is copied unchanged
+from the [Kubernetes IAM extension](https://github.com/feloy/podman-desktop-extension-kubernetes-iam)
+and should be treated as a library.

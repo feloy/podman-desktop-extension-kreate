@@ -1,4 +1,7 @@
 **/node_modules/**
 **/dist/**
 **/coverage/**
+tests/playwright/tests/**
+tests/playwright/output/**
+tests/playwright/recordings/**
 .git
