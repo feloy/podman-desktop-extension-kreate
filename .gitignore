@@ -8,5 +8,4 @@ dist
 output
 /tests/playwright/tests/
 /tests/playwright/output/
-/tests/playwright/recordings/
 /tests/resources/envtest-kubeconfig

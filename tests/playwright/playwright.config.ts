@@ -1,22 +1,4 @@
 import { defineConfig } from '@playwright/test';
-import type { ReporterDescription } from '@playwright/test';
-
-const reporter: ReporterDescription[] = [
-  ['list'],
-  ['junit', { outputFile: './output/junit-results.xml' }],
-  ['html', { open: 'never', outputFolder: './output/html-results' }],
-];
-
-if (process.env.VIDEO_SUBTITLES === 'true') {
-  reporter.push([
-    './src/video-captions/reporter.ts',
-    {
-      outputFile: './recordings/kreate-e2e.ass',
-      chapterFile: './recordings/kreate-e2e.ffmetadata',
-      testTitleDurationMs: 3_000,
-    },
-  ]);
-}
 
 export default defineConfig({
   testDir: './src',
@@ -25,7 +7,11 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   outputDir: './output/test-results',
-  reporter,
+  reporter: [
+    ['list'],
+    ['junit', { outputFile: './output/junit-results.xml' }],
+    ['html', { open: 'never', outputFolder: './output/html-results' }],
+  ],
   // The Podman Desktop runner starts and stops tracing itself.
   use: { screenshot: 'only-on-failure' },
 });

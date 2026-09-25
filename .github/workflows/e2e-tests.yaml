@@ -47,26 +47,13 @@ jobs:
           path: output/plugins/
 
   integration-tests-pr-check:
-    name: integration tests / ${{ matrix.os }} / ${{ matrix.variant }}
+    name: integration tests / ${{ matrix.os }}
     needs: build-container
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      # The subtitled recording needs a fresh profile and envtest cluster.
       matrix:
-        include:
-          - os: windows-2025
-            variant: baseline
-            test_command: test:e2e:integration
-          - os: ubuntu-24.04
-            variant: baseline
-            test_command: test:e2e:integration
-          - os: macos-26
-            variant: baseline
-            test_command: test:e2e:integration
-          - os: ubuntu-24.04
-            variant: subtitled
-            test_command: test:e2e:integration:subtitled
+        os: [windows-2025, ubuntu-24.04, macos-26]
     env:
       SKIP_INSTALLATION: true
       EXTENSION_PREINSTALLED: true
@@ -148,15 +135,9 @@ jobs:
           echo 'envtest did not become ready' >&2
           exit 1
 
-      - name: Install ffmpeg for xvfb recording
-        if: runner.os == 'Linux' && matrix.variant == 'subtitled'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg xvfb
-
       - name: Run Integration tests
         shell: bash
-        run: pnpm ${{ matrix.test_command }}
+        run: pnpm test:e2e:integration
         env:
           NODE_OPTIONS: --no-experimental-strip-types
           KUBEBUILDER_ASSETS: ${{ steps.setup-envtest.outputs.KUBEBUILDER_ASSETS }}
@@ -187,8 +168,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: e2e-pr-check-${{ matrix.os }}-${{ matrix.variant }}
+          name: e2e-pr-check-${{ matrix.os }}
           path: |
             tests/playwright/output/
             tests/playwright/tests/
-            tests/playwright/recordings/

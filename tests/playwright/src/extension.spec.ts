@@ -22,9 +22,7 @@ import * as path from 'node:path';
 
 import type { Locator, Page } from '@playwright/test';
 import type { NavigationBar, Runner } from '@podman-desktop/tests-playwright';
-import { PreferencesPage, RunnerOptions, StatusBar } from '@podman-desktop/tests-playwright';
-
-import { configureVideoCaptions, expect, frameForCaption, test } from './video-captions/runtime';
+import { expect, PreferencesPage, RunnerOptions, StatusBar, test } from '@podman-desktop/tests-playwright';
 
 const EXTENSION_PREINSTALLED = process.env.EXTENSION_PREINSTALLED === 'true';
 const EXTENSION_LABEL = 'podman-desktop.kreate';
@@ -132,10 +130,6 @@ test.describe.serial('Kreate extension', { tag: '@integration' }, () => {
   let webview: Page;
   let generatedYaml: string;
 
-  test.beforeEach(({ page }, testInfo) => {
-    configureVideoCaptions(page, testInfo);
-  });
-
   test.beforeAll(async ({ runner, welcomePage }) => {
     test.setTimeout(120_000);
     prepareKubeconfig();
@@ -175,96 +169,78 @@ test.describe.serial('Kreate extension', { tag: '@integration' }, () => {
   });
 
   test('Generate a ConfigMap manifest from a template', async () => {
-    await test.step(
-      'Create a ConfigMap manifest from a template',
-      async () => {
-        await webview.getByRole('button', { name: 'Use template' }).click();
-        await expect(webview.getByRole('heading', { name: 'Use a template' })).toBeVisible();
-        await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
-        await webview.getByRole('button', { name: 'configmap', exact: true }).click();
-        await webview.getByLabel('Name').fill(CONFIG_MAP_NAME);
-        // The first key input is for literal values; the second is for optional file input.
-        await webview.getByPlaceholder('key').first().fill('message');
-        await webview.getByPlaceholder('value').fill('from-template');
-        await webview.getByRole('button', { name: 'view-yaml' }).click();
+    await test.step('Create a ConfigMap manifest from a template', async () => {
+      await webview.getByRole('button', { name: 'Use template' }).click();
+      await expect(webview.getByRole('heading', { name: 'Use a template' })).toBeVisible();
+      await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
+      await webview.getByRole('button', { name: 'configmap', exact: true }).click();
+      await webview.getByLabel('Name').fill(CONFIG_MAP_NAME);
+      // The first key input is for literal values; the second is for optional file input.
+      await webview.getByPlaceholder('key').first().fill('message');
+      await webview.getByPlaceholder('value').fill('from-template');
+      await webview.getByRole('button', { name: 'view-yaml' }).click();
 
-        const yamlEditor = webview.locator('textarea');
-        await expect(yamlEditor).toHaveValue(/kind: ConfigMap/);
-        await expect(yamlEditor).toHaveValue(new RegExp(`name: ${CONFIG_MAP_NAME}`));
-        await frameForCaption(yamlEditor);
-        await expect(yamlEditor, 'The generated ConfigMap includes the template values').toHaveValue(
-          /message: from-template/,
-        );
-        generatedYaml = await yamlEditor.inputValue();
-      },
-      { params: { videoCaption: true } },
-    );
+      const yamlEditor = webview.locator('textarea');
+      await expect(yamlEditor).toHaveValue(/kind: ConfigMap/);
+      await expect(yamlEditor).toHaveValue(new RegExp(`name: ${CONFIG_MAP_NAME}`));
+      await expect(yamlEditor, 'The generated ConfigMap includes the template values').toHaveValue(
+        /message: from-template/,
+      );
+      generatedYaml = await yamlEditor.inputValue();
+    });
   });
 
   test('Show the ConfigMap specification beside the YAML editor', async () => {
-    await test.step(
-      'Inspect the ConfigMap and its selected YAML fields',
-      async () => {
-        const yamlEditor = webview.locator('textarea');
-        const specPanel = webview.getByRole('region', { name: 'Resource specification' });
-        const specTitle = specPanel.locator('span.font-bold').first();
+    await test.step('Inspect the ConfigMap and its selected YAML fields', async () => {
+      const yamlEditor = webview.locator('textarea');
+      const specPanel = webview.getByRole('region', { name: 'Resource specification' });
+      const specTitle = specPanel.locator('span.font-bold').first();
 
-        await selectYamlLine(yamlEditor, 'kind: ConfigMap');
-        await expect(specTitle).toHaveText('ConfigMap');
-        await expect(specPanel.getByText('metadata', { exact: true })).toBeVisible();
-        await expect(specPanel.getByText('data', { exact: true })).toBeVisible();
+      await selectYamlLine(yamlEditor, 'kind: ConfigMap');
+      await expect(specTitle).toHaveText('ConfigMap');
+      await expect(specPanel.getByText('metadata', { exact: true })).toBeVisible();
+      await expect(specPanel.getByText('data', { exact: true })).toBeVisible();
 
-        await selectYamlLine(yamlEditor, `name: ${CONFIG_MAP_NAME}`);
-        await expect(specTitle).toHaveText('metadata');
-        await selectYamlLine(yamlEditor, 'message: from-template');
-        await expect(specTitle).toHaveText('data');
-      },
-      { params: { videoCaption: true } },
-    );
+      await selectYamlLine(yamlEditor, `name: ${CONFIG_MAP_NAME}`);
+      await expect(specTitle).toHaveText('metadata');
+      await selectYamlLine(yamlEditor, 'message: from-template');
+      await expect(specTitle).toHaveText('data');
+    });
   });
 
   test('Edit and apply the ConfigMap to Kubernetes', async () => {
-    await test.step(
-      'Apply the edited ConfigMap to the cluster',
-      async () => {
-        const yamlEditor = webview.locator('textarea');
-        await yamlEditor.fill(generatedYaml.replace('from-template', 'edited-in-kreate'));
-        await webview.getByRole('button', { name: 'Apply to cluster' }).click();
-        await expect(
-          webview.getByText('The resource has been successfully applied to the cluster'),
-          'Kreate confirms that the ConfigMap was applied',
-        ).toBeVisible();
-      },
-      { params: { videoCaption: true } },
-    );
+    await test.step('Apply the edited ConfigMap to the cluster', async () => {
+      const yamlEditor = webview.locator('textarea');
+      await yamlEditor.fill(generatedYaml.replace('from-template', 'edited-in-kreate'));
+      await webview.getByRole('button', { name: 'Apply to cluster' }).click();
+      await expect(
+        webview.getByText('The resource has been successfully applied to the cluster'),
+        'Kreate confirms that the ConfigMap was applied',
+      ).toBeVisible();
+    });
     await expect.poll(() => kubectlResource('configmap', CONFIG_MAP_NAME).data?.message).toBe('edited-in-kreate');
   });
 
   test('Reject invalid YAML, then apply multiple ConfigMaps from the editor', async () => {
-    await test.step(
-      'Correct invalid YAML and apply two ConfigMaps',
-      async () => {
-        const yamlEditor = webview.locator('textarea');
-        const applyButton = webview.getByRole('button', { name: 'Apply to cluster' });
+    await test.step('Correct invalid YAML and apply two ConfigMaps', async () => {
+      const yamlEditor = webview.locator('textarea');
+      const applyButton = webview.getByRole('button', { name: 'Apply to cluster' });
 
-        await yamlEditor.fill('not-a-kubernetes-resource');
-        await applyButton.click();
-        await expect(webview.getByText('No valid Kubernetes resources found in content')).toBeVisible();
+      await yamlEditor.fill('not-a-kubernetes-resource');
+      await applyButton.click();
+      await expect(webview.getByText('No valid Kubernetes resources found in content')).toBeVisible();
 
-        await yamlEditor.fill(
-          BATCH_CONFIG_MAP_NAMES.map(
-            (name, index) =>
-              `apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ${name}\ndata:\n  source: editor-${index + 1}\n`,
-          ).join('---\n'),
-        );
-        await expect(applyButton).toBeEnabled();
-        await frameForCaption(yamlEditor);
-        await applyButton.click();
-        await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
-        await expect(webview.getByText('No valid Kubernetes resources found in content')).toHaveCount(0);
-      },
-      { params: { videoCaption: true } },
-    );
+      await yamlEditor.fill(
+        BATCH_CONFIG_MAP_NAMES.map(
+          (name, index) =>
+            `apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ${name}\ndata:\n  source: editor-${index + 1}\n`,
+        ).join('---\n'),
+      );
+      await expect(applyButton).toBeEnabled();
+      await applyButton.click();
+      await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
+      await expect(webview.getByText('No valid Kubernetes resources found in content')).toHaveCount(0);
+    });
 
     for (const [index, name] of BATCH_CONFIG_MAP_NAMES.entries()) {
       await expect.poll(() => kubectlResource('configmap', name).data?.source).toBe(`editor-${index + 1}`);
@@ -272,31 +248,26 @@ test.describe.serial('Kreate extension', { tag: '@integration' }, () => {
   });
 
   test('Generate and apply a generic Secret from a nested template', async () => {
-    await test.step(
-      'Create a generic Secret from a template',
-      async () => {
-        await webview.getByRole('button', { name: 'Use template' }).click();
-        await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
-        await webview.getByRole('button', { name: 'secret', exact: true }).click();
-        await webview.getByRole('button', { name: '(select a resource type)', exact: true }).click();
-        await webview.getByRole('button', { name: 'generic', exact: true }).click();
-        await webview.getByLabel('Name').fill(SECRET_NAME);
-        await webview.getByPlaceholder('key').first().fill('token');
-        const secretValue = webview.getByPlaceholder('value');
-        await expect(secretValue).toHaveAttribute('type', 'password');
-        await secretValue.fill(SECRET_VALUE);
-        await webview.getByRole('button', { name: 'view-yaml' }).click();
+    await test.step('Create a generic Secret from a template', async () => {
+      await webview.getByRole('button', { name: 'Use template' }).click();
+      await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
+      await webview.getByRole('button', { name: 'secret', exact: true }).click();
+      await webview.getByRole('button', { name: '(select a resource type)', exact: true }).click();
+      await webview.getByRole('button', { name: 'generic', exact: true }).click();
+      await webview.getByLabel('Name').fill(SECRET_NAME);
+      await webview.getByPlaceholder('key').first().fill('token');
+      const secretValue = webview.getByPlaceholder('value');
+      await expect(secretValue).toHaveAttribute('type', 'password');
+      await secretValue.fill(SECRET_VALUE);
+      await webview.getByRole('button', { name: 'view-yaml' }).click();
 
-        const yamlEditor = webview.locator('textarea');
-        await expect(yamlEditor).toHaveValue(/kind: Secret/);
-        await expect(yamlEditor).toHaveValue(new RegExp(`name: ${SECRET_NAME}`));
-        await expect(yamlEditor).toHaveValue(/token:/);
-        await frameForCaption(yamlEditor);
-        await webview.getByRole('button', { name: 'Apply to cluster' }).click();
-        await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
-      },
-      { params: { videoCaption: true } },
-    );
+      const yamlEditor = webview.locator('textarea');
+      await expect(yamlEditor).toHaveValue(/kind: Secret/);
+      await expect(yamlEditor).toHaveValue(new RegExp(`name: ${SECRET_NAME}`));
+      await expect(yamlEditor).toHaveValue(/token:/);
+      await webview.getByRole('button', { name: 'Apply to cluster' }).click();
+      await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
+    });
 
     await expect
       .poll(() => {
@@ -307,84 +278,70 @@ test.describe.serial('Kreate extension', { tag: '@integration' }, () => {
   });
 
   test('Recover from a template error and create a Namespace', async () => {
-    await test.step(
-      'Provide the missing Namespace name and apply the generated manifest',
-      async () => {
-        await webview.getByRole('button', { name: 'Use template' }).click();
-        await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
-        await webview.getByRole('button', { name: 'namespace', exact: true }).click();
-        await webview.getByRole('button', { name: 'view-yaml' }).click();
-        await expect(webview.getByText(/execute command error:/)).toBeVisible();
+    await test.step('Provide the missing Namespace name and apply the generated manifest', async () => {
+      await webview.getByRole('button', { name: 'Use template' }).click();
+      await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
+      await webview.getByRole('button', { name: 'namespace', exact: true }).click();
+      await webview.getByRole('button', { name: 'view-yaml' }).click();
+      await expect(webview.getByText(/execute command error:/)).toBeVisible();
 
-        await webview.getByLabel('Name').fill(NAMESPACE_NAME);
-        await webview.getByRole('button', { name: 'view-yaml' }).click();
-        const yamlEditor = webview.locator('textarea');
-        await expect(yamlEditor).toHaveValue(/kind: Namespace/);
-        await expect(yamlEditor).toHaveValue(new RegExp(`name: ${NAMESPACE_NAME}`));
-        await frameForCaption(yamlEditor);
-        await webview.getByRole('button', { name: 'Apply to cluster' }).click();
-        await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
-      },
-      { params: { videoCaption: true } },
-    );
+      await webview.getByLabel('Name').fill(NAMESPACE_NAME);
+      await webview.getByRole('button', { name: 'view-yaml' }).click();
+      const yamlEditor = webview.locator('textarea');
+      await expect(yamlEditor).toHaveValue(/kind: Namespace/);
+      await expect(yamlEditor).toHaveValue(new RegExp(`name: ${NAMESPACE_NAME}`));
+      await webview.getByRole('button', { name: 'Apply to cluster' }).click();
+      await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
+    });
 
     await expect.poll(() => kubectlResource('namespace', NAMESPACE_NAME).metadata?.name).toBe(NAMESPACE_NAME);
   });
 
   test('Discover a Pod resource and apply its completed YAML', async () => {
-    await test.step(
-      'Select a Pod from the resource catalog and complete its manifest',
-      async () => {
-        await webview.getByRole('button', { name: 'Use template' }).click();
-        await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
-        await webview.getByRole('button', { name: 'other...', exact: true }).click();
-        const resourceDialog = webview.getByRole('dialog', { name: 'Select a resource' });
-        await resourceDialog.getByRole('button', { name: 'v1 Pod', exact: true }).click();
+    await test.step('Select a Pod from the resource catalog and complete its manifest', async () => {
+      await webview.getByRole('button', { name: 'Use template' }).click();
+      await webview.getByRole('button', { name: 'Resource to create:', exact: true }).click();
+      await webview.getByRole('button', { name: 'other...', exact: true }).click();
+      const resourceDialog = webview.getByRole('dialog', { name: 'Select a resource' });
+      await resourceDialog.getByRole('button', { name: 'v1 Pod', exact: true }).click();
 
-        const yamlEditor = webview.locator('textarea');
-        await expect(yamlEditor).toHaveValue(/kind: Pod/);
-        await yamlEditor.fill(
-          [
-            'apiVersion: v1',
-            'kind: Pod',
-            'metadata:',
-            `  name: ${POD_NAME}`,
-            'spec:',
-            '  containers:',
-            '    - name: pause',
-            `      image: ${POD_IMAGE}`,
-            '',
-          ].join('\n'),
-        );
-        await frameForCaption(yamlEditor);
-        await webview.getByRole('button', { name: 'Apply to cluster' }).click();
-        await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
-      },
-      { params: { videoCaption: true } },
-    );
+      const yamlEditor = webview.locator('textarea');
+      await expect(yamlEditor).toHaveValue(/kind: Pod/);
+      await yamlEditor.fill(
+        [
+          'apiVersion: v1',
+          'kind: Pod',
+          'metadata:',
+          `  name: ${POD_NAME}`,
+          'spec:',
+          '  containers:',
+          '    - name: pause',
+          `      image: ${POD_IMAGE}`,
+          '',
+        ].join('\n'),
+      );
+      await webview.getByRole('button', { name: 'Apply to cluster' }).click();
+      await expect(webview.getByText('The resource has been successfully applied to the cluster')).toBeVisible();
+    });
 
     await expect.poll(() => kubectlResource('pod', POD_NAME).spec?.containers?.[0]?.image).toBe(POD_IMAGE);
   });
 
   test('Show the Pod specification for the selected container field', async () => {
-    await test.step(
-      'Inspect the Pod schema while moving through container fields',
-      async () => {
-        const yamlEditor = webview.locator('textarea');
-        const specPanel = webview.getByRole('region', { name: 'Resource specification' });
-        const specTitle = specPanel.locator('span.font-bold').first();
+    await test.step('Inspect the Pod schema while moving through container fields', async () => {
+      const yamlEditor = webview.locator('textarea');
+      const specPanel = webview.getByRole('region', { name: 'Resource specification' });
+      const specTitle = specPanel.locator('span.font-bold').first();
 
-        await selectYamlLine(yamlEditor, 'kind: Pod');
-        await expect(specTitle).toHaveText('Pod');
-        await expect(specPanel.getByText('spec', { exact: true })).toBeVisible();
+      await selectYamlLine(yamlEditor, 'kind: Pod');
+      await expect(specTitle).toHaveText('Pod');
+      await expect(specPanel.getByText('spec', { exact: true })).toBeVisible();
 
-        await selectYamlLine(yamlEditor, '  containers:');
-        await expect(specTitle).toHaveText('spec');
-        await selectYamlLine(yamlEditor, '      image:');
-        await expect(specTitle).toHaveText('containers');
-        await expect(specPanel.getByText('containers[].image', { exact: true })).toBeVisible();
-      },
-      { params: { videoCaption: true } },
-    );
+      await selectYamlLine(yamlEditor, '  containers:');
+      await expect(specTitle).toHaveText('spec');
+      await selectYamlLine(yamlEditor, '      image:');
+      await expect(specTitle).toHaveText('containers');
+      await expect(specPanel.getByText('containers[].image', { exact: true })).toBeVisible();
+    });
   });
 });

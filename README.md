@@ -83,7 +83,7 @@ You can install the extension by providing the following OCI image in the **Inst
 
 OCI Image for nightly build: `ghcr.io/podman-desktop/extension-kreate:nightly`
 
-## End-to-end tests and captioned video
+## End-to-end tests
 
 The Playwright suite in `tests/playwright` runs Kreate inside Podman Desktop against an
 `envtest-start` Kubernetes API. It checks extension activation, template-based ConfigMap
@@ -100,10 +100,5 @@ containing `kubectl`. Run `pnpm install` and `pnpm test:e2e`. Set
 already placed in the Playwright runner's `kreate-tests/plugins/kreate` directory,
 set `EXTENSION_PREINSTALLED=true` and `SKIP_INSTALLATION=true`.
 
-On Linux with `ffmpeg` and `xvfb-run`, run
-`pnpm test:e2e:integration:subtitled` to produce
-`tests/playwright/recordings/kreate-e2e.mp4` with burned-in captions and chapters.
-The pull request workflow builds the current extension and uploads the baseline and
-captioned runs as artifacts. `tests/playwright/src/video-captions` is copied unchanged
-from the [Kubernetes IAM extension](https://github.com/feloy/podman-desktop-extension-kubernetes-iam)
-and should be treated as a library.
+The pull request workflow builds the current extension and runs the tests on Windows,
+Linux, and macOS. It uploads test reports and runner artifacts for each platform.

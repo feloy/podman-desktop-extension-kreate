@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "test:e2e:integration": "xvfb-maybe --auto-servernum -- npx playwright test src/ --grep @integration",
-    "test:e2e:integration:subtitled": "bash ./scripts/run-integration.sh --subtitles --caption-pace-ms 2000 --typing-duration-ms 2000",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
