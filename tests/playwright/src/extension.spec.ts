@@ -154,7 +154,9 @@ test.describe.serial('Kreate extension', { tag: '@integration' }, () => {
       .poll(async () => extensionsPage.extensionIsInstalled(EXTENSION_LABEL), { timeout: 60_000 })
       .toBeTruthy();
     const extension = await extensionsPage.getInstalledExtension('Kreate', EXTENSION_LABEL);
-    await expect(extension.status).toHaveText('ACTIVE');
+    // Newer Podman Desktop builds use a status role and "Installed" instead of the legacy "ACTIVE" label.
+    const status = extension.card.getByRole('status', { name: 'Extension status', exact: true }).or(extension.status);
+    await expect(status).toHaveText(/^\s*(ACTIVE|Installed)\s*$/);
   });
 
   test('Load a Kubernetes context and open the Kreate webview', async ({ page, navigationBar, runner }) => {
