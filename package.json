@@ -24,10 +24,13 @@
     "test:frontend": "vitest -c packages/frontend/vite.config.js run packages/frontend --passWithNoTests --coverage",
     "test:shared": "vitest run -r packages/shared --passWithNoTests --coverage",
     "test:unit": "npm run test:backend && npm run test:shared && npm run test:frontend",
+    "test:e2e": "pnpm --dir tests/playwright test:e2e:integration",
+    "test:e2e:integration": "pnpm --dir tests/playwright test:e2e:integration",
     "typecheck:shared": "tsc --noEmit --project packages/shared",
     "typecheck:frontend": "cd packages/frontend && pnpm check",
     "typecheck:backend": "tsc --noEmit --project packages/backend",
-    "typecheck": "npm run typecheck:shared && npm run typecheck:frontend && npm run typecheck:backend"
+    "typecheck:e2e": "cd tests/playwright && npm run typecheck",
+    "typecheck": "npm run typecheck:shared && npm run typecheck:frontend && npm run typecheck:backend && npm run typecheck:e2e"
   },
   "resolutions": {
     "string-width": "^4.2.0",
