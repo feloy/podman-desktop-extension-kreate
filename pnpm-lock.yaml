@@ -193,8 +193,8 @@ importers:
   .:
     dependencies:
       '@kubernetes/client-node':
-        specifier: 2.0.1
-        version: 2.0.1(supports-color@10.2.2)
+        specifier: 2.0.2
+        version: 2.0.2(supports-color@10.2.2)
       '@scalar/openapi-parser':
         specifier: ^0.29.19
         version: 0.29.19
@@ -275,8 +275,8 @@ importers:
   packages/backend:
     dependencies:
       '@kubernetes/client-node':
-        specifier: 2.0.1
-        version: 2.0.1(supports-color@10.2.2)
+        specifier: 2.0.2
+        version: 2.0.2(supports-color@10.2.2)
       '@scalar/openapi-parser':
         specifier: ^0.29.19
         version: 0.29.19
@@ -860,8 +860,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@kubernetes/client-node@2.0.1':
-    resolution: {integrity: sha512-evJgmEtgArEYlj6DNkMGjK41IrFK/hEwb5lWVxx0VRBWybQpnvi+2TtA19mLgVfRHfqX5yjHObX6e9W7LEZBjw==}
+  '@kubernetes/client-node@2.0.2':
+    resolution: {integrity: sha512-AvVq87luFXIoo95dkBsNnzU6pIwKGJM5CZD/iLfxMPXPzVa4w8isIMvXmYly+4TkodQFf3fQzX3KDysVy1OYng==}
 
   '@napi-rs/wasm-runtime@1.1.5':
     resolution: {integrity: sha512-AWPoBRJ9tsnVhor4sjO7rkni+7p+2IAEFj6cx06UgP10jkQHqay/36uRV/bFkgrh18D9vb4cr8Q0Pthskgzy+Q==}
@@ -3569,7 +3569,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@kubernetes/client-node@2.0.1(supports-color@10.2.2)':
+  '@kubernetes/client-node@2.0.2(supports-color@10.2.2)':
     dependencies:
       '@types/js-yaml': 4.0.9
       '@types/node': 26.4.0
